@@ -6,9 +6,12 @@ load_dotenv(dotenv_path=dotenv_path, verbose=True) # Load the .env file
 # verbose = True: Print out all of errors and informations the loaded .env file
 
 class Settings():
-    access_secret_key: str = os.getenv("AccessTokenSecretKey")
-    refresh_secret_key: str = os.getenv("RefreshTokenSecretKey")
-    algorithm: str = os.getenv("Algorithm")
+    algorithm: str = os.getenv("algorithm")
+    
+    user_access_secret_key: str = os.getenv("user_access_token_secret_key")
+    user_refresh_secret_key: str = os.getenv("user_refresh_token_secret_key")
+    admin_access_secret_key: str = os.getenv("admin_access_token_secret_key")
+    admin_refresh_secret_key: str = os.getenv("admin_refresh_token_secret_key")
 
 def get_settings():
     return Settings()

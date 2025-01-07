@@ -9,32 +9,29 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String(100), unique=True, index=True, nullable=False)
-    email = Column(String(150), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    nickname = Column(String(50), unique=True, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=datetime.now(timezone.utc))
-    last_login = Column(DateTime)
+    employee_id = Column(String(100), unique=True, index=True, nullable=False) # 사원 번호(사번)
+    hashed_password = Column(String(255), nullable=False) # 비밀번호
+    name = Column(String(50), nullable=False) # 이름
+    level = Column(BigInteger, nullable=False) # 레벨
+    join_date = Column(DateTime, nullable=False) # 입사일
+    department = Column(String(50), nullable=False) # 부서(소속)
 
-    articles = relationship("PsychArticle", back_populates="author")
-    tokens = relationship("JwtToken", back_populates="user")
+    token = relationship("JwtToken", back_populates="user")
     profile_url = relationship("UserProfile", back_populates="user")
 
 class UserProfile(Base):
     __tablename__ = "user_profile"
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    profile_url = Column(String(255), nullable=False)
+    profile_url = Column(String(255), nullable=False) # 프로필 이미지 URL (배너사진)
 
     user = relationship("User", back_populates="profile_url")
 
 class JwtToken(Base):
     __tablename__ = "jwt_tokens"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     access_token = Column(String(255), nullable=False, index=True)
     refresh_token = Column(String(255), nullable=False)
-    public_ip = Column(String(50), nullable=False)
 
-    user = relationship("User", back_populates="tokens")
+    user = relationship("User", back_populates="token")
