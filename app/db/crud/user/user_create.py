@@ -19,15 +19,14 @@ async def create_user(db: Session, user: UserCreate):
     db.refresh(db_user)
     return db_user
 
-async def create_jwt(db: Session, user_id: int, access_token: str, refresh_token: str, public_ip: str):
-    """새로운 JWT 토큰을 생성합니다."""
+async def create_jwt(db: Session, user_id: int, access_token: str, refresh_token: str):
     db_token = user_model.JwtToken(
         user_id=user_id,
         access_token=access_token,
-        refresh_token=refresh_token,
-        public_ip=public_ip
+        refresh_token=refresh_token
     )
     db.add(db_token)
     db.commit()
     db.refresh(db_token)
+    
     return db_token
