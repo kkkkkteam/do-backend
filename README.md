@@ -2,6 +2,6 @@
 
 ### 빠른 시작
 ```shell
-git clone https://github.com/takes-one-minute/take-one-minute-backend
+git clone https://github.com/kkkkkteam/do-backend.git
 docker-compose up
 ```
