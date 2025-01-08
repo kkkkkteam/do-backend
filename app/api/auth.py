@@ -128,3 +128,45 @@ async def read_user_me(access_token: str = Depends(oauth2_scheme), db: Session =
 
     finally:
         db.close()
+
+#유저 아이디 확인하고 jwt 토큰과 정보 일치하면 jwt 토큰 삭제
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout_user(access_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        # Verify the access token
+        user_id = await jwt.get_user_id_from_token(token=access_token)
+        db_user = user_read.find_user_by_userid(db, user_id)
+        
+        if not db_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        # Delete JWT tokens
+        await user_delete.delete_jwt(db, user_id, access_token)
+    
+    except HTTPException as http_ex:
+        db.rollback()
+
+        err_msg = traceback.format_exc()
+        print(err_msg)
+
+        raise http_ex
+
+    except SQLAlchemyError as e:
+        db.rollback()
+
+        err_msg = traceback.format_exc()
+        print(err_msg)
+
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+    except Exception as e:
+        db.rollback()
+
+        err_msg = traceback.format_exc()
+        print(err_msg)
+
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
+
+    finally:
+        db.close()
