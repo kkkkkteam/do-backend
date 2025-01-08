@@ -14,5 +14,4 @@ import traceback
 
 router = APIRouter()
 
-# PW 수정
-@router.put("/password", status_code=status.HTTP_200_OK)
+

@@ -35,7 +35,8 @@ class UserProfile(Base):
     __tablename__ = "user_profile"
 
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    profile_url = Column(String(255), nullable=False) # 프로필 이미지 URL (배너사진)
+    profile_url = Column(String(255), nullable=False) # 캐릭터 이미지 URL (캐릭터)
+    banner_url = Column(String(255), nullable=False) # 배너 이미지 URL (배경)
 
     user = relationship("User", back_populates="profile_url")
 

@@ -83,7 +83,6 @@ async def refresh_token(refresh_token: str = Depends(oauth2_scheme), db: Session
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Internal server error"
             )
-        
 
 @router.get("/me", response_model=user_schema.User, status_code=status.HTTP_200_OK)
 async def read_user_me(access_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
