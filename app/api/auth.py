@@ -5,7 +5,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from db.session import get_db
 from db.schemas import user_schema
-from db.crud.user import user_create, user_read, user_update, user_delete
+from db.models import user_model
+from db.crud import user_action, auth_action
 
 from utils import utils, jwt, hash
 
@@ -20,7 +21,7 @@ router = APIRouter()
 async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     try:
         # Check if the email is valid
-        db_user = user_read.find_user_by_employee_id(db, data.username)
+        db_user = user_action.find_user_by_employee_id(db, data.username)
         if not db_user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
@@ -31,14 +32,16 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         # Create JWT tokens
         access_token = await jwt.create_access_token("access", db_user.id)
         refresh_token = await jwt.create_refresh_token("refresh", db_user.id)
-        await user_create.create_jwt(db, db_user.id, access_token, refresh_token, "0.0.0.0")
+        
+        # db 에 넣음
+        #await user_create.create_jwt(db, db_user.id, access_token, refresh_token, "0.0.0.0")
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
     
     except Exception as e:
         db.rollback()  # transaction rollback
         print(traceback.format_exc())  # print error log on console (comment out if not needed)
 
-        # 예외 타입에 따라 나눠서 처리할 수 있음
+        # Check the exception type
         if isinstance(e, HTTPException):
             raise e
         elif isinstance(e, SQLAlchemyError):
@@ -58,44 +61,35 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 async def refresh_token(refresh_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         # Verify the refresh token
-        user_id = await jwt.get_user_id_from_token(token=token)
+        user_id = await jwt.get_user_id_from_token(token=refresh_token)
         
         access_token = await jwt.create_access_token("access", user_id)
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
     
-    except HTTPException as http_ex:
+    except HTTPException as e:
         db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise http_ex
-
-    except SQLAlchemyError as e:
-        db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
-
-    except Exception as e:
-        db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
-
-    finally:
-        db.close()
+        print(traceback.format_exc())
+        
+        # Check the exception type
+        if isinstance(e, HTTPException):
+            raise e
+        elif isinstance(e, SQLAlchemyError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error occurred"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
 
 @router.get("/me", response_model=user_schema.User, status_code=status.HTTP_200_OK)
 async def read_user_me(access_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     try:
         # Verify the access token
-        user_id = await jwt.get_user_id_from_token(token=access_token)
-        db_user = user_read.find_user_by_userid(db, user_id)
+        user_id = await jwt.get_payload(token=access_token)['uid']
+        db_user = user_action.find_user_by_user_id(db, user_id)
         
         if not db_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
