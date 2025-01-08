@@ -25,6 +25,7 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+# ------------------------------------------------------------------------
 
 # 연도별 경험치 스키마
 class YearlyExperienceBase(BaseModel):

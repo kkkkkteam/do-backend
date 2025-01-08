@@ -6,7 +6,7 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from db.session import get_db
-from db.crud.user import user_read
+from db.crud import user_action, auth_action
 
 from enum import Enum
 
@@ -14,6 +14,9 @@ class Permission(Enum):
     ADMIN = "*"
     MODERATOR = "mod"
     USER = "-"
+
+# KST = 한국 서울표준시
+KST = timezone(timedelta(hours=9), "KST")
 
 # Enccode
 async def encode_token(
@@ -24,7 +27,7 @@ async def encode_token(
     permission: Permission = Permission.USER
     ) -> str:
     
-    current_utc_time = datetime.now(timezone.utc)
+    current_utc_time = datetime.now(KST)
     expire = current_utc_time + expries_delta if expries_delta else current_utc_time + timedelta(minutes=1)
     payload = { "sub": subject, "uid": user_id, "perm": permission.value, "iat": current_utc_time, "exp": expire }
     
