@@ -82,7 +82,7 @@ class JobQuest(Base):
 
     user = relationship("User", back_populates="job_quests")
 
-# 리더 퀘스트 테이블
+# 리더 부여 퀘스트 테이블
 class DepartmentMember(Base):
     __tablename__ = "department_members"  # 1. 소속 및 인원 관리 테이블
 
