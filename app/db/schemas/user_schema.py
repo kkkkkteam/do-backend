@@ -123,21 +123,23 @@ class JobQuest(JobQuestBase):
     class Config:
         from_attributes = True
 
-
-# 리더뷰 퀘스트 스키마
+# 리더 퀘스트 기본 스키마
 class LeaderQuestBase(BaseModel):
-    quest_name: str
-    experience_points: int
-    remarks: Optional[str] = None
+    quest_name: str  # 퀘스트 이름
+    experience_points: int  # 부여된 경험치
+    remarks: Optional[str] = None  # 비고 (선택적)
 
-
+# 리더 퀘스트 생성 스키마
 class LeaderQuestCreate(LeaderQuestBase):
-    pass
+    month: int  # 퀘스트 부여 월
+    employee_id: str  # 사번 (대상자)
 
-
+# 리더 퀘스트 조회 스키마
 class LeaderQuest(LeaderQuestBase):
-    id: int
-    user_id: int
+    id: int  # 퀘스트 고유 ID
+    month: int  # 퀘스트 부여 월
+    employee_id: str  # 사번 (대상자)
+    achievement_details: Optional[str] = None  # 달성 세부 정보
 
     class Config:
         from_attributes = True

@@ -1,5 +1,5 @@
 from db.session import Base
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, BigInteger, SmallInteger, DateTime
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, BigInteger, SmallInteger, DateTime, Float, Date, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ENUM
 
@@ -18,7 +18,7 @@ class User(Base):
     level = Column(String(50), nullable=False)  # 레벨
 
     yearly_experience = relationship("YearlyExperience", back_populates="user")
-    performance_evaluations = relationship("PerformanceEvaluation", back_populates="user")
+    performance_evaluations = relationship("PerformanceEvaluationㄴ", back_populates="user")
     job_quests = relationship("JobQuest", back_populates="user")
     leader_quests = relationship("LeaderQuest", back_populates="user")
     company_projects = relationship("CompanyProject", back_populates="user")
@@ -82,17 +82,43 @@ class JobQuest(Base):
 
     user = relationship("User", back_populates="job_quests")
 
-# 리더뷰 퀘스트 테이블
-class LeaderQuest(Base):
-    __tablename__ = "leader_quests"
+# 리더 퀘스트 테이블
+class DepartmentMember(Base):
+    __tablename__ = "department_members"  # 1. 소속 및 인원 관리 테이블
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    quest_name = Column(String(100), nullable=False)  # 퀘스트 이름
-    experience_points = Column(BigInteger, nullable=False)  # 경험치
+    employee_id = Column(String(50), unique=True, nullable=False)  # 사번
+    name = Column(String(100), nullable=False)  # 이름
+    join_date = Column(Date, nullable=False)  # 입사일
+    department = Column(String(100), nullable=False)  # 소속
+
+
+class LeaderQuestAssignment(Base):
+    __tablename__ = "leader_quest_assignments" # 2. 리더 부여 퀘스트 달성 기록 테이블
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    month = Column(Integer, nullable=False)  # 월
+    employee_id = Column(String(50), ForeignKey("department_members.employee_id"), nullable=False)  # 사번
+    quest_name = Column(String(100), nullable=False)  # 리더 부여 퀘스트명
+    achievement_details = Column(String(255))  # 달성 내용
+    granted_experience = Column(BigInteger, nullable=False, default=0)  # 부여된 경험치
     remarks = Column(String(255))  # 비고
 
-    user = relationship("User", back_populates="leader_quests")
+
+class DepartmentLeaderQuestConfig(Base):
+    __tablename__ = "department_leaderquest_config" # 3. 부서별 퀘스트 설정 테이블
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    department = Column(String(100), ForeignKey("department_members.department"), nullable=False)  # 소속
+    quest_name = Column(String(100), nullable=False)  # 퀘스트명
+    acquisition_cycle = Column(Enum("월", "주", "연", name="acquisition_cycle_enum"), nullable=False)  # 획득 주기
+    weight = Column(Float, nullable=False)  # 비중 (%)
+    experience_points = Column(BigInteger, nullable=False)  # 기본 경험치
+    max_condition = Column(Integer, nullable=False)  # Max 조건 값
+    median_condition = Column(Integer, nullable=False)  # Median 조건 값
+    max_details = Column(String(255), nullable=True)  # Max 조건 설명
+    median_details = Column(String(255), nullable=True)  # Median 조건 설명
+    remarks = Column(String(255))  # 비고
 
 # 전사 프로젝트 테이블
 class CompanyProject(Base):
