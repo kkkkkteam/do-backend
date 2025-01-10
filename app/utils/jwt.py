@@ -45,3 +45,9 @@ def decode_token(token: str, secret_key: str) -> dict:
         return jwt.decode(token, secret_key, algorithms=["HS256"])
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+def decode_access_token(token: str) -> dict:
+    return decode_token(token, get_settings().access_secret_key)
+
+def decode_refresh_token(token: str) -> dict:
+    return decode_token(token, get_settings().refresh_secret_key)
