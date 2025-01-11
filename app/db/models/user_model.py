@@ -13,13 +13,39 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False) # 사용자 아이디
     hashed_password = Column(String(255), nullable=False) # 비밀번호
     name = Column(String(50), nullable=False) # 이름
-    level = Column(BigInteger, nullable=False) # 레벨
     join_date = Column(DateTime, nullable=False) # 입사일
-    department = Column(String(50), nullable=False) # 부서(소속)
+
+    level_id = Column(Integer, ForeignKey("levels.id"), nullable=False)
+    job_group = Column(Integer, ForeignKey("job_group.id"), nullable=False) # 직무 그룹
+    department = Column(Integer, ForeignKey("departments.id"), nullable=False) # 부서
 
     experience = relationship("Experience", back_populates="user")
     profile_url = relationship("UserProfile", back_populates="user")
     token = relationship("JwtToken", back_populates="user")
+
+    job_group = relationship("JobGroup", back_populates="users")
+    department = relationship("Department", back_populates="users")
+
+    level = relationship("Level", back_populates="users") # 레벨
+
+
+class Department(Base):
+    __tablename__ = "departments"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(50), unique=True, index=True, nullable=False)
+
+    users = relationship("User", back_populates="department")
+
+
+class JobGroup(Base):
+    __tablename__ = "job_group"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(50), unique=True, index=True, nullable=False)
+
+    users = relationship("User", back_populates="job_group")
+
 
 class Experience(Base):
     __tablename__ = "experience"
