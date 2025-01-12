@@ -4,7 +4,8 @@ from sqlalchemy.dialects.postgresql import ENUM
 
 from datetime import datetime, timezone
 
-from core.etc import KST
+from core.etc import KST, Permission
+
 from db.session import Base
 
 class User(Base):
@@ -16,16 +17,18 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False) # 비밀번호
     name = Column(String(50), nullable=False) # 이름
     join_date = Column(DateTime, default=datetime.now(KST), nullable=False) # 입사일
+    permission = Column(ENUM(Permission), default=Permission.USER, nullable=False) # 권한
 
     job_group_id = Column(Integer, ForeignKey("job_group.id"), nullable=False) # 직무 그룹
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False) # 부서
 
-    experience = relationship("Experience", back_populates="user")
     profile_url = relationship("UserProfile", back_populates="user")
     token = relationship("UserJwtToken", back_populates="user")
-
-    job_group = relationship("JobGroup", back_populates="users")
-    department = relationship("Department", back_populates="users")
+    
+    experience = relationship("Experience", back_populates="user")
+    
+    job_group = relationship("JobGroup", back_populates="user")
+    department = relationship("Department", back_populates="user")
 
 class Department(Base):
     __tablename__ = "departments"
@@ -34,7 +37,7 @@ class Department(Base):
     name = Column(String(50), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
 
-    users = relationship("User", back_populates="department")
+    user = relationship("User", back_populates="department")
 
 
 class JobGroup(Base):
@@ -44,7 +47,7 @@ class JobGroup(Base):
     name = Column(String(50), unique=True, index=True, nullable=False)
     is_active = Column(Boolean, default=True)
 
-    users = relationship("User", back_populates="job_group")
+    user = relationship("User", back_populates="job_group")
 
 class UserProfile(Base):
     __tablename__ = "user_profile"

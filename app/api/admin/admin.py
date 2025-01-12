@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime, timezone
 
 from core.security import user_oauth2_scheme, admin_oauth2_scheme
+from core.etc import KST
 
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
@@ -30,19 +32,39 @@ async def create_admin(
                 detail="The user with this username already exists in the system"
             )
         
-        # Create a new user
-        db_admin = await admin_action.create_admin(db, data)
+        # Add user to the database
+        hashed_password = hash.hash_text(data.password)
+
+        db_admin = admin_model.Admin(
+            username=data.username,
+            hashed_password=hashed_password,
+            created_at=datetime.now(KST)
+        )
+        
+        db.add(db_admin)
+        db.commit()
+        db.refresh(db_admin)
+        
         if not db_admin:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to create admin"
             )
         
+        # Create JWT token
         access_token = jwt.create_access_token("access", db_admin.id, jwt.Permission.ADMIN)
         refresh_token = jwt.create_refresh_token("refresh", db_admin.id, jwt.Permission.ADMIN)
 
-        db_admin_jwt = await admin_action.create_admin_jwt(db, db_admin.id, 
-                    admin_schema.AdminJwtToken(access_token=access_token, refresh_token=refresh_token))
+        # Add JWT token to the database
+        db_admin_jwt = admin_model.AdminJwtToken(
+            admin_id=db_admin.id,
+            access_token=data.access_token,
+            refresh_token=data.refresh_token
+        )
+        
+        db.add(db_admin_jwt)
+        db.commit()
+        db.refresh(db_admin_jwt)
         
         if not db_admin_jwt:
             raise HTTPException(
@@ -50,6 +72,7 @@ async def create_admin(
                 detail="Failed to create admin jwt"
             )
         
+        # Return JWT token(access, refresh)
         return admin_schema.AdminJwtToken(access_token=access_token, refresh_token=refresh_token)
     
     except Exception as e:

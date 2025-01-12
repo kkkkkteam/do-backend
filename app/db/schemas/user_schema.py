@@ -10,11 +10,19 @@ class UserBase(BaseModel):
     job_group_name: str
     department_name: str
 
-class Users(BaseModel):
-    data: List[UserBase]
-
 class UserCreate(UserBase):
     password: str
+    permission: Optional[str] = "USER"
+
+class User(BaseModel):
+    employee_id: str
+    username: str
+    name: str
+    join_date: datetime
+    job_group_name: str
+    department_name: str
+    total_experience: int
+    level: str
 
 class JwtToken(BaseModel):
     access_token: str
@@ -31,9 +39,3 @@ class JobGroupBase(BaseModel):
 
 class JobGroupCreate(JobGroupBase):
     pass
-
-class Departments(BaseModel):
-    data: List[DepartmentBase]
-
-class JobGroups(BaseModel):
-    data: List[JobGroupBase]

@@ -23,7 +23,7 @@ async def login_admin(
 ):
     try:
         # Check if the username is valid
-        db_admin = admin_action.find_admin_by_username(db, data.username)
+        db_admin = db.query(admin_model.Admin).filter(admin_model.Admin.username == data.username).first()
         if not db_admin:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
@@ -31,15 +31,32 @@ async def login_admin(
         if not hash.verify_hashed_text(data.password, db_admin.hashed_password):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
         
+        # Create JWT token
         access_token = jwt.create_access_token("access", db_admin.id, jwt.Permission.ADMIN)
         refresh_token = jwt.create_refresh_token("refresh", db_admin.id, jwt.Permission.ADMIN)
         
-        db_admin_jwt = admin_action.find_admin_jwt_by_admin_id(db, db_admin.id)
+        # Sync JWT token with the database
+        db_admin_jwt = db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.admin_id == db_admin.id).first()
         if db_admin_jwt:
-            await admin_action.update_admin_jwt_token(db, db_admin.id, admin_schema.AdminJwtToken(access_token=access_token, refresh_token=refresh_token))
+            # Update JWT token in the database
+            db_admin_jwt.access_token = data.access_token
+            db_admin_jwt.refresh_token = data.refresh_token
+            
+            db.commit()
+            db.refresh(db_admin_jwt)
         else:
-            await admin_action.create_admin_jwt(db, db_admin.id, admin_schema.AdminJwtToken(access_token=access_token, refresh_token=refresh_token))
+            # Add JWT token to the database
+            db_admin_jwt = admin_model.AdminJwtToken(
+                admin_id=db_admin.id,
+                access_token=data.access_token,
+                refresh_token=data.refresh_token
+            )
+            
+            db.add(db_admin_jwt)
+            db.commit()
+            db.refresh(db_admin_jwt)
         
+        # Return JWT token
         return admin_schema.AdminJwtToken(access_token=access_token, refresh_token=refresh_token)
 
     except Exception as e:

@@ -2,11 +2,9 @@ from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
 
-class AdminBase(BaseModel):
-    username: str
-    created_at: Optional[datetime]
 
-class AdminCreate(AdminBase):
+class AdminCreate(BaseModel):
+    username: str
     password: str
 
 class AdminJwtToken(BaseModel):

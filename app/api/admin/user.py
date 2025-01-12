@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.security import user_oauth2_scheme, admin_oauth2_scheme
+from core.etc import KST, Permission
 
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
-from db.models import admin_model, user_model
+from db.models import admin_model, user_model, experience_model
 from db.crud import admin_action, user_action
 
 from utils import utils, jwt, hash
@@ -17,7 +18,7 @@ import traceback
 
 router = APIRouter()
 
-@router.get("/users", response_model=user_schema.Users, status_code=status.HTTP_200_OK)
+@router.get("/users", status_code=status.HTTP_200_OK)
 async def get_users(
     access_token: str = Depends(admin_oauth2_scheme),
     db: Session = Depends(get_db),
@@ -27,19 +28,19 @@ async def get_users(
     try:
         user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
-        # 데이터베이스에서 페이지네이션으로 사용자 가져오기
-        db_users = user_action.find_users_with_pagination(db, skip=skip, limit=limit)
+        # Get users from the database with pagination
+        db_users = db.query(user_model.User).offset(skip).limit(limit).all()
         if not db_users:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Users not found"
             )
         
-        # 사용자 정보 가공
+        # Data processing
         users = []
         for user in db_users:
-            department_name = user_action.find_department_by_department_id(db, user.department_id).name
-            job_group_name = user_action.find_job_group_by_job_group_id(db, user.job_group_id).name
+            department_name = db.query(user_model.Department).filter(user_model.Department.id == user.department_id).first().name
+            job_group_name = db.query(user_model.JobGroup).filter(user_model.JobGroup.id == user.job_group_id).first().name
             if not department_name or not job_group_name:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -55,8 +56,7 @@ async def get_users(
             )
             users.append(user_base)
 
-        return user_schema.Users(data=users)
-
+        return users
     except Exception as e:
         print(traceback.format_exc())
         raise HTTPException(
@@ -66,7 +66,7 @@ async def get_users(
     finally:
         db.close()
 
-@router.get("/user/{employee_id}", response_model=user_schema.UserBase, status_code=status.HTTP_200_OK)
+@router.get("/user/{employee_id}", status_code=status.HTTP_200_OK)
 async def get_user(
     employee_id: str,
     access_token: str = Depends(admin_oauth2_scheme),
@@ -75,30 +75,51 @@ async def get_user(
     try:
         user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
-        db_user = user_action.find_user_by_employee_id(db, employee_id)
+        db_user = (
+            db.query(user_model.User)
+            .options(
+                joinedload(user_model.User.job_group),
+                joinedload(user_model.User.department),
+                joinedload(user_model.User.experience)
+            )
+            .filter(user_model.User.employee_id == employee_id)
+            .first()
+        )
+        
         if not db_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+        if not db_user.job_group or not db_user.department:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
+                detail="Job group or Department not found"
             )
         
-        department_name = user_action.find_department_by_department_id(db, db_user.department_id).name
-        job_group_name = user_action.find_job_group_by_job_group_id(db, db_user.job_group_id).name
-        if not department_name or not job_group_name:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department or Job group not found"
-            )
+        # Caclulate total experience
+        total_exp = sum(db_exp.amount for db_exp in db_user.experience)
         
-        user_base = user_schema.UserBase(
+        # Find the level corresponding to the total_exp
+        db_level = (
+            db.query(experience_model.Level)
+            .filter(experience_model.Level.total_required_experience <= total_exp)
+            .order_by(experience_model.Level.total_required_experience.desc())
+            .first()
+        )
+
+        # If a matching level is found, get its name
+        level_name = db_level.name if db_level else "No Level"
+        
+        # Return user
+        return user_schema.UserBase(
             employee_id=db_user.employee_id,
             username=db_user.username,
             name=db_user.name,
             join_date=db_user.join_date,
-            job_group_name=job_group_name,
-            department_name=department_name
+            job_group_name=db_user.job_group.name,
+            department_name=db_user.department.name,
+            total_experience=total_exp,
+            level=level_name
         )
-        return user_base
 
     except Exception as e:
         print(traceback.format_exc())
@@ -116,24 +137,59 @@ async def create_user(
     db: Session = Depends(get_db)
 ):
     try:
-        payload = jwt.admin_decode_access_token(db, access_token)
+        user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
         # Check if the user already exists
-        db_user = user_action.find_user_by_employee_id(db, data.employee_id)
+        db_user = db.query(user_model.User).filter(user_model.User.employee_id == data.employee_id).first()
         if db_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="The user with this employee_id already exists in the system"
             )
         
+        # Check if the department and job group exist
+        db_department, db_job_group = (
+            db.query(user_model.Department, user_model.JobGroup)
+            .filter(user_model.Department.name == data.department_name)
+            .filter(user_model.JobGroup.name == data.job_group_name)
+            .first()
+        )
+
+        if not db_department or not db_job_group:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Department or Job group not found"
+            )
+        
+        # Check permission
+        perm = Permission.USER.value
+        if data.permission.lower() == "leader":
+            perm = Permission.LEADER.value
+        else:
+            perm = Permission.USER.value
+        
         # Create a new user
-        db_user = await user_action.create_user(db, data)
+        db_user = user_model.User(
+            employee_id=data.employee_id,
+            username=data.username,
+            name=data.name,
+            join_date=data.join_date,
+            department_id=data.db_department.id,
+            job_group_id=data.db_job_group.id,
+            permission_type=perm
+        )
+        
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
         if not db_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to create user"
             )
 
+        # Return success message
         return {"detail": "User created successfully"}
     
     except Exception as e:

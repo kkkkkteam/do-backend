@@ -25,14 +25,22 @@ async def create_job_groups(
     try:
         user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
-        db_job_group = user_action.find_job_group_by_job_group_name(db, data.name)
+        # Check if the job group already exist
+        db_job_group = db.query(user_model.JobGroup).filter(user_model.JobGroup.name == data.name).first()
         if db_job_group:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="The job group with this name already exists in the system"
             )
         
-        db_job_group = await user_action.create_job_group(db, data.name)
+        # Add job group to the database
+        db_job_group = user_model.JobGroup(
+            name=data.name
+        )
+        
+        db.add(db_job_group)
+        db.commit()
+        db.refresh(db_job_group)
 
         if not db_job_group:
             raise HTTPException(
@@ -40,6 +48,7 @@ async def create_job_groups(
                 detail="Failed to create job group"
             )
 
+        # Return success message
         return {"detail": "Job group created successfully"}
     
     except Exception as e:
@@ -62,7 +71,7 @@ async def create_job_groups(
     finally:
         db.close()
 
-@router.get("/job_groups", response_model=user_schema.JobGroups, status_code=status.HTTP_200_OK)
+@router.get("/job_groups", status_code=status.HTTP_200_OK)
 async def get_job_groups(
     access_token: str = Depends(admin_oauth2_scheme), 
     db: Session = Depends(get_db)
@@ -70,15 +79,16 @@ async def get_job_groups(
     try:
         user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
-        db_job_groups = user_action.find_job_groups_all(db)
+        # Get job groups from the database
+        db_job_groups = db.query(user_model.JobGroup).all()
         if not db_job_groups:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Job groups not found"
             )
-        # db_job_groups 를 JobGroups 로 반환하도록 하세요
-        job_groups = [user_schema.JobGroupBase(name=job_group.name) for job_group in db_job_groups]
-        return user_schema.JobGroups(data=job_groups)
+        
+        # Return job groups
+        return db_job_groups
     
     except Exception as e:
         print(traceback.format_exc())

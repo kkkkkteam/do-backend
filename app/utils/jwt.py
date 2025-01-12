@@ -5,17 +5,10 @@ from fastapi import HTTPException, Depends
 from typing import List
 from sqlalchemy.orm import Session
 
-from core.etc import KST
+from core.etc import KST, Permission
 
 from db.models import user_model, admin_model
 
-
-from enum import Enum
-
-class Permission(Enum):
-    ADMIN = "*"
-    MODERATOR = "mod"
-    USER = "-"
 
 # Enccode
 def encode_token(
