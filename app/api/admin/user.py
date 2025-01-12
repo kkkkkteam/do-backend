@@ -10,7 +10,6 @@ from core.etc import KST, Permission
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
 from db.models import admin_model, user_model, experience_model
-from db.crud import admin_action, user_action
 
 from utils import utils, jwt, hash
 
@@ -46,13 +45,30 @@ async def get_users(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Department or Job group not found"
                 )
-            user_base = user_schema.UserBase(
+            
+            # Caclulate total experience
+            total_exp = sum(db_exp.amount for db_exp in user.experience)
+            
+            # Find the level corresponding to the total_exp
+            db_level = (
+                db.query(experience_model.Level)
+                .filter(experience_model.Level.total_required_experience <= total_exp)
+                .order_by(experience_model.Level.total_required_experience.desc())
+                .first()
+            )
+
+            # If a matching level is found, get its name
+            level_name = db_level.name if db_level else "No Level"
+                
+            user_base = user_schema.User(
                 employee_id=user.employee_id,
                 username=user.username,
                 name=user.name,
                 join_date=user.join_date,
                 job_group_name=job_group_name,
-                department_name=department_name
+                department_name=department_name,
+                total_experience=total_exp,
+                level=level_name
             )
             users.append(user_base)
 
@@ -110,7 +126,7 @@ async def get_user(
         level_name = db_level.name if db_level else "No Level"
         
         # Return user
-        return user_schema.UserBase(
+        return user_schema.User(
             employee_id=db_user.employee_id,
             username=db_user.username,
             name=db_user.name,
@@ -162,20 +178,21 @@ async def create_user(
             )
         
         # Check permission
-        perm = Permission.USER.value
+        perm = Permission.USER
         if data.permission.lower() == "leader":
-            perm = Permission.LEADER.value
+            perm = Permission.LEADER
         else:
-            perm = Permission.USER.value
+            perm = Permission.USER
         
         # Create a new user
         db_user = user_model.User(
             employee_id=data.employee_id,
             username=data.username,
             name=data.name,
+            hashed_password=hash.hash_text(data.password),
             join_date=data.join_date,
-            department_id=data.db_department.id,
-            job_group_id=data.db_job_group.id,
+            department_id=db_department.id,
+            job_group_id=db_job_group.id,
             permission_type=perm
         )
         
@@ -219,7 +236,7 @@ async def add_user_favorite(
     db: Session = Depends(get_db)
 ):
     try:
-        uid = jwt.user_decode_access_token(db, access_token).get("uid")
+        uid = jwt.admin_decode_access_token(db, access_token).get("uid")
         
         # Check if the user exists
         db_user = db.query(user_model.User).filter(user_model.User.employee_id == employee_id).first()
@@ -231,7 +248,7 @@ async def add_user_favorite(
         
         # Check if the user is already in the favorite list
         db_favorite = db.query(admin_model.Favorite).filter(and_(
-            admin_model.Favorite.employee_id == employee_id,admin_model.Favorite.admin_id == uid)).first()
+            admin_model.Favorite.user_id == db_user.id, admin_model.Favorite.admin_id == uid)).first()
         
         if db_favorite:
             raise HTTPException(
@@ -240,7 +257,7 @@ async def add_user_favorite(
             )
         
         # Add favorite
-        db_favorite = admin_model.Favorite(employee_id=employee_id, admin_id=uid)
+        db_favorite = admin_model.Favorite(user_id=db_user.id, admin_id=uid)
         db.add(db_favorite)
         db.commit()
         db.refresh(db_favorite)
@@ -272,3 +289,60 @@ async def add_user_favorite(
             )
     finally:
         db.close()
+
+@router.delete("user/{employee_id}/favorite", status_code=status.HTTP_200_OK)
+async def delete_user_favorite(
+    employee_id: str,
+    access_token: str = Depends(user_oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    try:
+        uid = jwt.admin_decode_access_token(db, access_token).get("uid")
+        
+        # Check if the user exists
+        db_user = db.query(user_model.User).filter(user_model.User.employee_id == employee_id).first()
+        if not db_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Check if the user is in the favorite list
+        db_favorite = db.query(admin_model.Favorite).filter(and_(
+            admin_model.Favorite.user_id == db_user.id, admin_model.Favorite.admin_id == uid)).first()
+        
+        if not db_favorite:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The user is not in the favorite list"
+            )
+        
+        # Delete favorite
+        db.delete(db_favorite)
+        db.commit()
+        
+        return {"detail": "Favorite deleted successfully"}
+
+    except Exception as e:
+        db.rollback()
+        print(traceback.format_exc())
+        
+        # Check the exception type
+        if isinstance(e, HTTPException):
+            raise e
+        elif isinstance(e, SQLAlchemyError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error occurred"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
+    finally:
+        db.close()
+
+
+
+

@@ -8,7 +8,6 @@ from core.security import user_oauth2_scheme, admin_oauth2_scheme
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
 from db.models import admin_model, user_model
-from db.crud import admin_action, user_action
 
 from utils import utils, jwt, hash
 
@@ -39,8 +38,8 @@ async def login_admin(
         db_admin_jwt = db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.admin_id == db_admin.id).first()
         if db_admin_jwt:
             # Update JWT token in the database
-            db_admin_jwt.access_token = data.access_token
-            db_admin_jwt.refresh_token = data.refresh_token
+            db_admin_jwt.access_token = access_token
+            db_admin_jwt.refresh_token = refresh_token
             
             db.commit()
             db.refresh(db_admin_jwt)
@@ -48,8 +47,8 @@ async def login_admin(
             # Add JWT token to the database
             db_admin_jwt = admin_model.AdminJwtToken(
                 admin_id=db_admin.id,
-                access_token=data.access_token,
-                refresh_token=data.refresh_token
+                access_token=access_token,
+                refresh_token=refresh_token
             )
             
             db.add(db_admin_jwt)

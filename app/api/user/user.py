@@ -8,7 +8,6 @@ from core.security import user_oauth2_scheme, admin_oauth2_scheme
 from db.session import get_db
 from db.schemas import user_schema
 from db.models import user_model
-from db.crud import user_action
 
 from utils import utils, jwt, hash
 

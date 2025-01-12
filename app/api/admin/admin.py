@@ -10,7 +10,6 @@ from core.etc import KST
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
 from db.models import admin_model, user_model
-from db.crud import admin_action, user_action
 
 from utils import utils, jwt, hash
 
@@ -58,8 +57,8 @@ async def create_admin(
         # Add JWT token to the database
         db_admin_jwt = admin_model.AdminJwtToken(
             admin_id=db_admin.id,
-            access_token=data.access_token,
-            refresh_token=data.refresh_token
+            access_token=access_token,
+            refresh_token=refresh_token
         )
         
         db.add(db_admin_jwt)

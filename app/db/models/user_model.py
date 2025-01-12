@@ -17,7 +17,7 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False) # 비밀번호
     name = Column(String(50), nullable=False) # 이름
     join_date = Column(DateTime, default=datetime.now(KST), nullable=False) # 입사일
-    permission = Column(ENUM(Permission), default=Permission.USER, nullable=False) # 권한
+    permission_type = Column(ENUM(Permission), default=Permission.USER, nullable=False) # 권한
 
     job_group_id = Column(Integer, ForeignKey("job_group.id"), nullable=False) # 직무 그룹
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False) # 부서
@@ -26,7 +26,7 @@ class User(Base):
     token = relationship("UserJwtToken", back_populates="user")
     
     experience = relationship("Experience", back_populates="user")
-    
+
     job_group = relationship("JobGroup", back_populates="user")
     department = relationship("Department", back_populates="user")
 

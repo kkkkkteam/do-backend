@@ -8,7 +8,6 @@ from core.security import user_oauth2_scheme, admin_oauth2_scheme
 from db.session import get_db
 from db.schemas import admin_schema, user_schema
 from db.models import admin_model, user_model
-from db.crud import admin_action, user_action
 
 from utils import utils, jwt, hash
 from typing import Optional, List
@@ -73,7 +72,7 @@ async def create_departments(
         db.close()
 
 @router.get("/departments", status_code=status.HTTP_200_OK)
-async def get_departments(
+async def get_departments_all(
     access_token: str = Depends(admin_oauth2_scheme), 
     db: Session = Depends(get_db)
 ):
