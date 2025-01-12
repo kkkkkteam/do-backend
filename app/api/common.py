@@ -75,3 +75,26 @@ async def create_experience(data: experience_schema.ExperienceCreate, access_tok
         db.close()
 
 
+# 레벨 조건 조회
+@router.get("/levels", status_code=status.HTTP_200_OK)
+async def get_levels(
+    db: Session = Depends(get_db)
+):
+    try:
+        db_levels = utils.get_levels(db)
+        if not db_levels:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Levels not found"
+            )
+        
+        return db_levels
+    
+    except Exception as e:
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+    finally:
+        db.close()

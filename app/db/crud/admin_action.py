@@ -46,6 +46,7 @@ def find_admin_by_username(db: Session, username: str) -> admin_model.Admin:
 def find_admin_jwt_by_admin_id(db: Session, admin_id: int) -> admin_model.AdminJwtToken:
     return db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.admin_id == admin_id).first()
 
+
 async def update_admin_jwt_token(db: Session, admin_id: int, data: admin_schema.AdminJwtToken) -> admin_model.AdminJwtToken:
     db_jwt = db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.admin_id == admin_id).first()
     

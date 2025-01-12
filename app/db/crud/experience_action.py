@@ -23,3 +23,4 @@ async def create_experience(db: Session, user_id: int, amount: int, created_at: 
 def get_experiences(db: Session, user_id: int) -> list[experience_schema.Experiences]:
     return db.query(experience_model.Experience).filter(experience_model.Experience.user_id == user_id).all()
 
+

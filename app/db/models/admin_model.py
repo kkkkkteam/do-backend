@@ -16,6 +16,7 @@ class Admin(Base):
 
     created_at = Column(DateTime, default=datetime.now(KST), nullable=False) # 가입일
 
+    favorites = relationship("Favorite", back_populates="admin")
     token = relationship("AdminJwtToken", back_populates="admin")
 
 class AdminJwtToken(Base):
@@ -26,3 +27,12 @@ class AdminJwtToken(Base):
     refresh_token = Column(String(255), nullable=False)
 
     admin = relationship("Admin", back_populates="token")
+
+class Favorite(Base):
+    __tablename__ = "favorites"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    admin_id = Column(Integer, ForeignKey("admins.id"), nullable=False)
+
+    admin = relationship("Admin", back_populates="favorites")

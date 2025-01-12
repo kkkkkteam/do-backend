@@ -32,6 +32,7 @@ class Department(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(50), unique=True, index=True, nullable=False)
+    is_active = Column(Boolean, default=True)
 
     users = relationship("User", back_populates="department")
 
@@ -41,6 +42,7 @@ class JobGroup(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(50), unique=True, index=True, nullable=False)
+    is_active = Column(Boolean, default=True)
 
     users = relationship("User", back_populates="job_group")
 
@@ -61,3 +63,6 @@ class UserJwtToken(Base):
     refresh_token = Column(String(255), nullable=False)
 
     user = relationship("User", back_populates="token")
+
+
+
