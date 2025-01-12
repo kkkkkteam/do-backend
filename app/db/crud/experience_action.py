@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from db.schemas import experience_schema
 from db.models import experience_model
 
-
 async def create_experience(db: Session, user_id: int, amount: int, created_at: datetime) -> experience_model.Experience:
     db_experience = experience_model.Experience(
         user_id=user_id,

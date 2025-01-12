@@ -6,9 +6,9 @@ class UserBase(BaseModel):
     employee_id: str
     username: str
     name: str
-    level: int
     join_date: datetime
-    department: str
+    job_group_name: str
+    department_name: str
 
 class UserCreate(UserBase):
     password: str

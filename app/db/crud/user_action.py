@@ -4,8 +4,8 @@ from sqlalchemy import or_, and_, union_all
 from fastapi import HTTPException
 from datetime import datetime, timezone
 
-from db.models import user_model
-from db.schemas import user_schema
+from db.models import user_model, experience_model
+from db.schemas import user_schema, admin_schema
 from utils import hash
 
 # Create
@@ -25,15 +25,23 @@ async def create_jwt(db: Session, user_id: int, data: user_schema.JwtToken) -> u
 async def create_user(db: Session, data: user_schema.UserCreate) -> user_model.User:
     
     hashed_password = hash.hash_text(data.password)
+
+    db_department = find_department_by_department_name(db, data.department_name)
+    if not db_department:
+        raise HTTPException(status_code=404, detail="Department not found")
+
+    db_job_group = find_job_group_by_job_group_name(db, data.job_group_name)
+    if not db_job_group:
+        raise HTTPException(status_code=404, detail="Job group not found")
     
     db_user = user_model.User(
         employee_id=data.employee_id,
         username=data.username,
         hashed_password=hashed_password,
         name=data.name,
-        level=data.level,
         join_date=data.join_date,
-        department=data.department
+        department_id=db_department.id,
+        job_group=db_job_group.id
     )
     
     db.add(db_user)
@@ -41,6 +49,17 @@ async def create_user(db: Session, data: user_schema.UserCreate) -> user_model.U
     db.refresh(db_user)
     
     return db_user
+
+async def create_department(db: Session, data: admin_schema.DepartmentCreate) -> user_model.Department:
+    db_department = user_model.Department(
+        name=data.name
+    )
+    
+    db.add(db_department)
+    db.commit()
+    db.refresh(db_department)
+    
+    return db_department
 
 # Read
 def find_user_by_employee_id(db: Session, employee_id: str) -> user_model.User:
@@ -51,6 +70,12 @@ def find_user_by_user_id(db: Session, user_id: int) -> user_model.User:
 
 def find_jwt_by_user_id(db: Session, user_id: int) -> user_model.UserJwtToken:
     return db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.user_id == user_id).first()
+
+def find_department_by_department_name(db: Session, department_name: str) -> user_model.Department:
+    return db.query(user_model.Department).filter(user_model.Department.name == department_name).first()
+
+def find_job_group_by_job_group_name(db: Session, job_group_name: str) -> user_model.JobGroup:
+    return db.query(user_model.JobGroup).filter(user_model.JobGroup.name == job_group_name).first()
 
 # Update
 async def update_jwt_token(db: Session, user_id: int, data: user_schema.JwtToken) -> user_model.UserJwtToken:

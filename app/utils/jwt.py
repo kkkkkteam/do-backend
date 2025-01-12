@@ -6,7 +6,9 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from core.etc import KST
-from db.session import get_db
+
+from db.models import user_model, admin_model
+
 
 from enum import Enum
 
@@ -46,14 +48,43 @@ def decode_token(token: str, secret_key: str) -> dict:
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-def decode_access_token(token: str) -> dict:
-    return decode_token(token, get_settings().access_secret_key)
+def user_decode_access_token(db: Session, token: str) -> dict:
+    if not db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.access_token == token).first():
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # verification permission
+    payload = decode_token(token, get_settings().access_secret_key)
+    return payload
 
-def decode_refresh_token(token: str) -> dict:
-    return decode_token(token, get_settings().refresh_secret_key)
+def user_decode_refresh_token(db: Session, token: str) -> dict:
+    if not db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.refresh_token == token).first():
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    # verification permission
+    payload = decode_token(token, get_settings().refresh_secret_key)
+    if payload.get("perm") != Permission.USER.value:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    return payload
 
-def admin_decode_access_token(token: str) -> dict:
-    payload = decode_access_token(token)
+def admin_decode_access_token(db: Session, token: str) -> dict:
+    if not db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.access_token == token).first():
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # verification permission
+    payload = decode_token(token, get_settings().access_secret_key)
     if payload.get("perm") != Permission.ADMIN.value:
         raise HTTPException(status_code=403, detail="Permission denied")
+    
+    return payload
+
+def admin_decode_refresh_token(db: Session, token: str) -> dict:
+    if not db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.refresh_token == token).first():
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # verification permission
+    payload = decode_token(token, get_settings().refresh_secret_key)
+    if payload.get("perm") != Permission.ADMIN.value:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
     return payload

@@ -12,3 +12,9 @@ class AdminCreate(AdminBase):
 class AdminJwtToken(BaseModel):
     access_token: str
     refresh_token: str
+
+class DepartmentBase(BaseModel):
+    name: str
+
+class DepartmentCreate(DepartmentBase):
+    pass

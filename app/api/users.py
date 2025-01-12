@@ -64,9 +64,12 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
 async def refresh_token(refresh_token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)):
     try:
         # Verify the refresh token
-        user_id = await jwt.decode_access_token(token=refresh_token).get('uid')
+        user_id = await jwt.user_decode_access_token(db, refresh_token).get('uid')
         
         access_token = await jwt.create_access_token("access", user_id)
+        if not user_action.update_jwt_token(db, user_id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update refresh token")
+
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
     
     except Exception as e:
@@ -88,3 +91,11 @@ async def refresh_token(refresh_token: str = Depends(user_oauth2_scheme), db: Se
             )
     finally:
         db.close()
+
+
+
+
+
+
+
+

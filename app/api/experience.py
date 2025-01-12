@@ -20,7 +20,7 @@ router = APIRouter()
 @router.get("/experiences", status_code=status.HTTP_200_OK)
 async def get_experiences(access_token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)):
     try:
-        uid = jwt.admin_decode_access_token(access_token).get("uid")
+        uid = jwt.admin_decode_access_token(db, access_token).get("uid")
 
         db_experiences = experience_action.get_experiences(db, uid)
         if not db_experiences:
@@ -44,7 +44,7 @@ async def get_experiences(access_token: str = Depends(user_oauth2_scheme), db: S
 @router.post("/experiences", status_code=status.HTTP_201_CREATED)
 async def create_experience(data: experience_schema.ExperienceCreate, access_token: str = Depends(admin_oauth2_scheme), db: Session = Depends(get_db)):
     try:
-        uid = jwt.admin_decode_access_token(access_token).get("uid")
+        uid = jwt.admin_decode_access_token(db, access_token).get("uid")
 
         db_experiences = await experience_action.create_experience(db, uid, data.amount, data.created_at)
         if not db_experiences:

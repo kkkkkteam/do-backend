@@ -59,7 +59,6 @@ async def login_admin(data: OAuth2PasswordRequestForm = Depends(), db: Session =
     finally:
         db.close()
 
-
 @router.post("", response_model=admin_schema.AdminJwtToken, status_code=status.HTTP_201_CREATED)
 async def create_admin(data: admin_schema.AdminCreate, db: Session = Depends(get_db)):
     try:
@@ -116,7 +115,7 @@ async def create_admin(data: admin_schema.AdminCreate, db: Session = Depends(get
 @router.post("/users", status_code=status.HTTP_201_CREATED)
 async def create_user(data: user_schema.UserCreate, access_token: str = Depends(admin_oauth2_scheme),  db: Session = Depends(get_db)):
     try:
-        payload = jwt.admin_decode_access_token(access_token)
+        payload = jwt.admin_decode_access_token(db, access_token)
 
         # Check if the user already exists
         db_user = user_action.find_user_by_employee_id(db, data.employee_id)
@@ -156,5 +155,45 @@ async def create_user(data: user_schema.UserCreate, access_token: str = Depends(
     finally:
         db.close()
 
+@router.post("/departments")
+async def create_departments(data: admin_schema.DepartmentCreate, access_token: str = Depends(admin_oauth2_scheme), db: Session = Depends(get_db)):
+    try:
+        payload = jwt.admin_decode_access_token(db, access_token)
 
+        db_department = user_action.find_department_by_department_name(db, data.name)
+        if db_department:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The department with this name already exists in the system"
+            )
+        
+        db_department = user_action.create_department(db, data)
+
+        if not db_department:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create department"
+            )
+
+        return {"detail": "Department created successfully"}
+    
+    except Exception as e:
+        db.rollback()
+        print(traceback.format_exc())
+        
+        # Check the exception type
+        if isinstance(e, HTTPException):
+            raise e
+        elif isinstance(e, SQLAlchemyError):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Database error occurred"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error"
+            )
+    finally:
+        db.close()
 
