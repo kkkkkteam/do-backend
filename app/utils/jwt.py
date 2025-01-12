@@ -5,6 +5,7 @@ from fastapi import HTTPException, Depends
 from typing import List
 from sqlalchemy.orm import Session
 
+from core.etc import KST
 from db.session import get_db
 
 from enum import Enum
@@ -13,9 +14,6 @@ class Permission(Enum):
     ADMIN = "*"
     MODERATOR = "mod"
     USER = "-"
-
-# KST = 한국 서울표준시
-KST = timezone(timedelta(hours=9), "KST")
 
 # Enccode
 def encode_token(
@@ -53,3 +51,9 @@ def decode_access_token(token: str) -> dict:
 
 def decode_refresh_token(token: str) -> dict:
     return decode_token(token, get_settings().refresh_secret_key)
+
+def admin_decode_access_token(token: str) -> dict:
+    payload = decode_access_token(token)
+    if payload.get("perm") != Permission.ADMIN.value:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    return payload

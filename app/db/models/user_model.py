@@ -1,9 +1,11 @@
-from db.session import Base
 from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, BigInteger, SmallInteger, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import ENUM
 
 from datetime import datetime, timezone
+
+from core.etc import KST
+from db.session import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -13,15 +15,15 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False) # 사용자 아이디
     hashed_password = Column(String(255), nullable=False) # 비밀번호
     name = Column(String(50), nullable=False) # 이름
-    join_date = Column(DateTime, nullable=False) # 입사일
+    join_date = Column(DateTime, default=datetime.now(KST), nullable=False) # 입사일
 
-    level_id = Column(Integer, ForeignKey("levels.id"), nullable=False)
-    job_group = Column(Integer, ForeignKey("job_group.id"), nullable=False) # 직무 그룹
-    department = Column(Integer, ForeignKey("departments.id"), nullable=False) # 부서
+    level_id = Column(Integer, ForeignKey("levels.id"), nullable=False) # 레벨
+    job_group_id = Column(Integer, ForeignKey("job_group.id"), nullable=False) # 직무 그룹
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False) # 부서
 
     experience = relationship("Experience", back_populates="user")
     profile_url = relationship("UserProfile", back_populates="user")
-    token = relationship("JwtToken", back_populates="user")
+    token = relationship("UserJwtToken", back_populates="user")
 
     job_group = relationship("JobGroup", back_populates="users")
     department = relationship("Department", back_populates="users")
@@ -46,17 +48,6 @@ class JobGroup(Base):
 
     users = relationship("User", back_populates="job_group")
 
-
-class Experience(Base):
-    __tablename__ = "experience"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    amount = Column(BigInteger, nullable=False) # 경험치
-    year = Column(SmallInteger, nullable=False) # 년도
-
-    user = relationship("User", back_populates="experience")
-
 class UserProfile(Base):
     __tablename__ = "user_profile"
 
@@ -66,8 +57,8 @@ class UserProfile(Base):
 
     user = relationship("User", back_populates="profile_url")
 
-class JwtToken(Base):
-    __tablename__ = "jwt_tokens"
+class UserJwtToken(Base):
+    __tablename__ = "user_jwt_tokens"
     
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     access_token = Column(String(255), nullable=False, index=True)

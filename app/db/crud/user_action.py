@@ -9,8 +9,8 @@ from db.schemas import user_schema
 from utils import hash
 
 # Create
-async def create_jwt(db: Session, user_id: int, data: user_schema.JwtToken) -> user_model.JwtToken:
-    db_jwt = user_model.JwtToken(
+async def create_jwt(db: Session, user_id: int, data: user_schema.JwtToken) -> user_model.UserJwtToken:
+    db_jwt = user_model.UserJwtToken(
         user_id=user_id,
         access_token=data.access_token,
         refresh_token=data.refresh_token
@@ -49,10 +49,19 @@ def find_user_by_employee_id(db: Session, employee_id: str) -> user_model.User:
 def find_user_by_user_id(db: Session, user_id: int) -> user_model.User:
     return db.query(user_model.User).filter(user_model.User.id == user_id).first()
 
-def find_jwt_by_user_id(db: Session, user_id: int) -> user_model.JwtToken:
-    return db.query(user_model.JwtToken).filter(user_model.JwtToken.user_id == user_id).first()
+def find_jwt_by_user_id(db: Session, user_id: int) -> user_model.UserJwtToken:
+    return db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.user_id == user_id).first()
 
 # Update
+async def update_jwt_token(db: Session, user_id: int, data: user_schema.JwtToken) -> user_model.UserJwtToken:
+    db_jwt = db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.user_id == user_id).first()
+    
+    db_jwt.access_token = data.access_token
+    db_jwt.refresh_token = data.refresh_token
+    
+    db.commit()
+    db.refresh(db_jwt)
 
+    return db_jwt
 
 # Delete
