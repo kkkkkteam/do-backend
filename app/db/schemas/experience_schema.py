@@ -4,11 +4,13 @@ from datetime import datetime
 
 class ExperienceBase(BaseModel):
     amount: int
-    created_at: datetime
 
 class ExperienceCreate(ExperienceBase):
-    pass
+    employee_id: str
 
+class Experience(ExperienceBase):
+    created_at: datetime
 
-class Experiences(ExperienceBase):
-    data: List[ExperienceBase]
+class Experiences(BaseModel):
+    total_experience: int
+    data: List[Experience]

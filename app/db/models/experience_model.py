@@ -14,7 +14,7 @@ class Experience(Base):
     amount = Column(BigInteger, nullable=False)  # 경험치
     created_at = Column(DateTime, default=datetime.now(KST), nullable=False)  # 경험치를 받은 날짜
 
-    user = relationship("User", back_populates="experience")
+    user = relationship("User", back_populates="experiences")
 
 class Level(Base):
     __tablename__ = "levels"
@@ -22,3 +22,11 @@ class Level(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     name = Column(String(20), unique=True, nullable=False)  # 예: "F1-Ⅰ"
     total_required_experience = Column(BigInteger, nullable=False)  # 총 필요 경험치
+
+class Occupation(Base):
+    __tablename__ = "occupations"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String(50), unique=True, nullable=False)  # 직업 이름
+    description = Column(String(255), nullable=False)  # 직업 설명
+

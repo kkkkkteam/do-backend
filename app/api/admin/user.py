@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime, timedelta, timezone
 
 from core.security import user_oauth2_scheme, admin_oauth2_scheme
 from core.etc import KST, Permission
@@ -28,7 +29,18 @@ async def get_users(
         user_id = jwt.admin_decode_access_token(db, access_token).get("uid")
 
         # Get users from the database with pagination
-        db_users = db.query(user_model.User).offset(skip).limit(limit).all()
+        db_users = (
+            db.query(user_model.User)
+            .options(
+                joinedload(user_model.User.job_group),
+                joinedload(user_model.User.department),
+                joinedload(user_model.User.experiences)
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        
         if not db_users:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -38,16 +50,14 @@ async def get_users(
         # Data processing
         users = []
         for user in db_users:
-            department_name = db.query(user_model.Department).filter(user_model.Department.id == user.department_id).first().name
-            job_group_name = db.query(user_model.JobGroup).filter(user_model.JobGroup.id == user.job_group_id).first().name
-            if not department_name or not job_group_name:
+            if not user.department.name or not user.job_group.name:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Department or Job group not found"
                 )
             
             # Caclulate total experience
-            total_exp = sum(db_exp.amount for db_exp in user.experience)
+            total_exp = sum(db_exp.amount for db_exp in user.experiences)
             
             # Find the level corresponding to the total_exp
             db_level = (
@@ -65,8 +75,8 @@ async def get_users(
                 username=user.username,
                 name=user.name,
                 join_date=user.join_date,
-                job_group_name=job_group_name,
-                department_name=department_name,
+                job_group_name=user.job_group.name,
+                department_name=user.department.name,
                 total_experience=total_exp,
                 level=level_name
             )
@@ -96,7 +106,7 @@ async def get_user(
             .options(
                 joinedload(user_model.User.job_group),
                 joinedload(user_model.User.department),
-                joinedload(user_model.User.experience)
+                joinedload(user_model.User.experiences)
             )
             .filter(user_model.User.employee_id == employee_id)
             .first()
@@ -112,7 +122,7 @@ async def get_user(
             )
         
         # Caclulate total experience
-        total_exp = sum(db_exp.amount for db_exp in db_user.experience)
+        total_exp = sum(db_exp.amount for db_exp in db_user.experiences)
         
         # Find the level corresponding to the total_exp
         db_level = (

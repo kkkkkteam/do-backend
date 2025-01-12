@@ -1,14 +1,13 @@
+from fastapi import HTTPException, Depends
+from sqlalchemy.orm import Session
 from jose import jwt, JWTError, ExpiredSignatureError
 from datetime import datetime, timedelta, timezone
-from core.config import get_settings
-from fastapi import HTTPException, Depends
 from typing import List
-from sqlalchemy.orm import Session
 
 from core.etc import KST, Permission
+from core.config import get_settings
 
 from db.models import user_model, admin_model
-
 
 # Enccode
 def encode_token(
@@ -47,6 +46,9 @@ def user_decode_access_token(db: Session, token: str) -> dict:
     
     # verification permission
     payload = decode_token(token, get_settings().access_secret_key)
+    if payload.get("perm") != Permission.USER.value:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
     return payload
 
 def user_decode_refresh_token(db: Session, token: str) -> dict:
@@ -78,6 +80,36 @@ def admin_decode_refresh_token(db: Session, token: str) -> dict:
     # verification permission
     payload = decode_token(token, get_settings().refresh_secret_key)
     if payload.get("perm") != Permission.ADMIN.value:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    return payload
+
+def admin_leader_decode_access_token(db: Session, token: str) -> dict:
+    if not db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.access_token == token).first():
+        if not db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.access_token == token).first():
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    # verification permission
+    payload = decode_token(token, get_settings().access_secret_key)
+    if payload.get("perm") not in {Permission.LEADER.value, Permission.ADMIN.value}:
+        raise HTTPException(status_code=403, detail="Permission denied")
+    
+    return payload
+
+def all_decode_access_token(db: Session, token: str) -> dict:
+    if not db.query(admin_model.AdminJwtToken).filter(admin_model.AdminJwtToken.access_token == token).first():
+        if not db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.access_token == token).first():
+            raise HTTPException(status_code=401, detail="Invalid token")
+
+    return decode_token(token, get_settings().access_secret_key)
+
+def user_leader_decode_access_token(db: Session, token: str) -> dict:
+    if not db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.access_token == token).first():
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # verification permission
+    payload = decode_token(token, get_settings().access_secret_key)
+    if payload.get("perm") not in {Permission.LEADER.value, Permission.USER.value}:
         raise HTTPException(status_code=403, detail="Permission denied")
     
     return payload

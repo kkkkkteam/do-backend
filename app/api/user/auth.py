@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
+from datetime import datetime, timedelta, timezone
 
 from core.security import user_oauth2_scheme, admin_oauth2_scheme
+from core.etc import Permission, KST
 
 from db.session import get_db
 from db.schemas import user_schema
@@ -16,10 +19,14 @@ import traceback
 router = APIRouter()
 
 @router.post("/login", response_model=user_schema.JwtToken, status_code=status.HTTP_200_OK)
-async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login_user(
+    data: OAuth2PasswordRequestForm = Depends(), 
+    db: Session = Depends(get_db)
+):
     try:
         # Check if the email is valid
-        db_user = user_action.find_user_by_employee_id(db, data.username)
+        db_user = db.query(user_model.User).filter(or_(
+            user_model.User.username == data.username, user_model.User.employee_id == data.username)).first()
         if not db_user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
 
@@ -28,15 +35,37 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
         
         # Create JWT tokens
-        access_token = jwt.create_access_token("access", db_user.id)
-        refresh_token = jwt.create_refresh_token("refresh", db_user.id)
-        
-        db_jwt = user_action.find_jwt_by_user_id(db, db_user.id)
-        if db_jwt:
-            user_action.update_jwt_token(db, db_user.id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token))
+        if db_user.permission_type == Permission.LEADER:
+            access_token = jwt.create_access_token("access", db_user.id, Permission.LEADER)
+            refresh_token = jwt.create_refresh_token("refresh", db_user.id, Permission.LEADER)
         else:
-            await user_action.create_jwt(db, db_user.id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token))
+            access_token = jwt.create_access_token("access", db_user.id, Permission.USER)
+            refresh_token = jwt.create_refresh_token("refresh", db_user.id, Permission.USER)
         
+        db_jwt = db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.user_id == db_user.id).first()
+        if db_jwt:
+            # Update JWT token in the database
+            db_jwt.access_token = access_token
+            db_jwt.refresh_token = refresh_token
+            db.commit()
+            db.refresh(db_jwt)
+        else:
+            # Add JWT token to the database
+            db_jwt = user_model.UserJwtToken(
+                user_id=db_user.id,
+                access_token=access_token,
+                refresh_token=refresh_token
+            )
+            db.add(db_jwt)
+            db.commit()
+            db.refresh(db_jwt)
+            if not db_jwt:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to create JWT token"
+                )
+        
+        # Return JWT token
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
 
     except Exception as e:
@@ -60,15 +89,26 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         db.close()
 
 @router.post("/refresh", response_model=user_schema.JwtToken, status_code=status.HTTP_200_OK)
-async def refresh_token(refresh_token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)):
+async def refresh_token(
+    refresh_token: str = Depends(user_oauth2_scheme), 
+    db: Session = Depends(get_db)
+):
     try:
         # Verify the refresh token
-        user_id = await jwt.user_decode_access_token(db, refresh_token).get('uid')
+        user_id = jwt.user_decode_refresh_token(db, refresh_token).get('uid')
         
-        access_token = await jwt.create_access_token("access", user_id)
-        if not user_action.update_jwt_token(db, user_id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)):
+        access_token = jwt.create_access_token("access", user_id)
+        
+        # Update JWT token in the database
+        db_jwt = db.query(user_model.UserJwtToken).filter(user_model.UserJwtToken.user_id == user_id).first()
+        if db_jwt:
+            db_jwt.access_token = access_token
+            db.commit()
+            db.refresh(db_jwt)
+        else:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update refresh token")
 
+        # Return JWT token
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
     
     except Exception as e:
@@ -90,7 +130,6 @@ async def refresh_token(refresh_token: str = Depends(user_oauth2_scheme), db: Se
             )
     finally:
         db.close()
-
 
 
 

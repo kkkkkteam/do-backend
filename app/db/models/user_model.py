@@ -25,7 +25,7 @@ class User(Base):
     profile_url = relationship("UserProfile", back_populates="user")
     token = relationship("UserJwtToken", back_populates="user")
     
-    experience = relationship("Experience", back_populates="user")
+    experiences = relationship("Experience", back_populates="user")
 
     job_group = relationship("JobGroup", back_populates="user")
     department = relationship("Department", back_populates="user")
