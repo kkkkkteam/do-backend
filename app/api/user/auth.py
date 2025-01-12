@@ -3,17 +3,16 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
+from core.security import user_oauth2_scheme, admin_oauth2_scheme
+
 from db.session import get_db
 from db.schemas import user_schema
 from db.models import user_model
-from db.crud import user_action, auth_action
+from db.crud import user_action
 
 from utils import utils, jwt, hash
 
 import traceback
-
-# OAuth2 Password Bearer
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 router = APIRouter()
 
@@ -28,15 +27,19 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         # Check if the password is valid
         if not hash.verify_hashed_text(data.password, db_user.hashed_password):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
-                
-        # Create JWT tokens
-        access_token = await jwt.create_access_token("access", db_user.id)
-        refresh_token = await jwt.create_refresh_token("refresh", db_user.id)
         
-        # db 에 넣음
-        #await user_create.create_jwt(db, db_user.id, access_token, refresh_token, "0.0.0.0")
+        # Create JWT tokens
+        access_token = jwt.create_access_token("access", db_user.id)
+        refresh_token = jwt.create_refresh_token("refresh", db_user.id)
+        
+        db_jwt = user_action.find_jwt_by_user_id(db, db_user.id)
+        if db_jwt:
+            user_action.update_jwt_token(db, db_user.id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token))
+        else:
+            await user_action.create_jwt(db, db_user.id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token))
+        
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
-    
+
     except Exception as e:
         db.rollback()  # transaction rollback
         print(traceback.format_exc())  # print error log on console (comment out if not needed)
@@ -58,15 +61,18 @@ async def login_user(data: OAuth2PasswordRequestForm = Depends(), db: Session = 
         db.close()
 
 @router.post("/refresh", response_model=user_schema.JwtToken, status_code=status.HTTP_200_OK)
-async def refresh_token(refresh_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+async def refresh_token(refresh_token: str = Depends(user_oauth2_scheme), db: Session = Depends(get_db)):
     try:
         # Verify the refresh token
-        user_id = await jwt.get_user_id_from_token(token=refresh_token)
+        user_id = await jwt.user_decode_access_token(db, refresh_token).get('uid')
         
         access_token = await jwt.create_access_token("access", user_id)
+        if not user_action.update_jwt_token(db, user_id, user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to update refresh token")
+
         return user_schema.JwtToken(access_token=access_token, refresh_token=refresh_token)
     
-    except HTTPException as e:
+    except Exception as e:
         db.rollback()
         print(traceback.format_exc())
         
@@ -83,42 +89,9 @@ async def refresh_token(refresh_token: str = Depends(oauth2_scheme), db: Session
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Internal server error"
             )
-
-@router.get("/me", response_model=user_schema.User, status_code=status.HTTP_200_OK)
-async def read_user_me(access_token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    try:
-        # Verify the access token
-        user_id = await jwt.get_payload(token=access_token)['uid']
-        db_user = user_action.find_user_by_user_id(db, user_id)
-        
-        if not db_user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
-        return db_user
-    
-    except HTTPException as http_ex:
-        db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise http_ex
-
-    except SQLAlchemyError as e:
-        db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
-
-    except Exception as e:
-        db.rollback()
-
-        err_msg = traceback.format_exc()
-        print(err_msg)
-
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal server error")
-
     finally:
         db.close()
+
+
+
+

@@ -1,9 +1,8 @@
 from fastapi import APIRouter
-from api import auth, users
-from core.config import Settings
+from api import common
 
 api_v1_router = APIRouter(prefix="/api/v1")
 
-api_v1_router.include_router(auth.router, tags=["auth"], prefix="/auth")
-api_v1_router.include_router(users.router, tags=["users"], prefix="/users")
+# common
+api_v1_router.include_router(common.router, tags=["common"], prefix="/common")
 
